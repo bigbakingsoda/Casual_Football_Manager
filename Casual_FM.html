@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Casual FM: Director's Cut Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; user-select: none; }
+        .tab-content, #main-app, #club-modal, #create-club-screen { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Tactical Pitch */
+        .pitch { 
+            background: #15803d; border: 4px solid white; border-radius: 10px; 
+            position: relative; width: 100%; height: 500px; 
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.3) 2px, transparent 2px),
+                linear-gradient(90deg, rgba(255,255,255,0.3) 2px, transparent 2px);
+            background-size: 50px 50px;
+        }
+        .pitch::before { 
+            content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 100px; height: 100px; border: 2px solid rgba(255,255,255,0.5); border-radius: 50%;
+        }
+        .pitch::after { 
+            content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: rgba(255,255,255,0.5);
+        }
+        .tac-node {
+            position: absolute; width: 36px; height: 36px; background: #dc2626; color: white;
+            border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 10px; font-weight: bold; cursor: grab; transform: translate(-50%, -50%);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; transition: background 0.2s;
+        }
+        .tac-node:active { cursor: grabbing; transform: translate(-50%, -50%) scale(1.1); }
+        .star-rating { color: #eab308; letter-spacing: -2px; font-size: 14px;}
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden text-slate-800">
+
+    <div id="start-screen" class="fixed inset-0 bg-slate-900 z-50 flex flex-col items-center justify-center p-8 overflow-y-auto">
+        <h1 class="text-6xl font-black text-white italic mb-2 tracking-tighter">CASUAL FM</h1>
+        <p class="text-slate-400 font-bold mb-10 uppercase tracking-widest">Select Game Mode</p>
+        
+        <div class="flex space-x-4 mb-8">
+            <button onclick="setMode('standard')" class="px-6 py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-500 transition border border-blue-400">🌍 Standard Leagues</button>
+            <button onclick="setMode('super')" class="px-6 py-4 bg-purple-600 text-white font-black rounded-xl hover:bg-purple-500 transition border border-purple-400">🏆 Super League</button>
+            <button onclick="openCreateClub()" class="px-6 py-4 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-500 transition border border-emerald-400">🛠️ Create-A-Club</button>
+        </div>
+
+        <div id="league-filters" class="hidden grid-cols-5 gap-4 mb-8 w-full max-w-6xl">
+            <button onclick="renderTeams('EN')" class="p-4 bg-white/10 hover:bg-blue-600 text-white font-bold rounded-xl transition">🏴󠁧󠁢󠁥󠁮󠁧󠁿 England</button>
+            <button onclick="renderTeams('ES')" class="p-4 bg-white/10 hover:bg-yellow-500 text-white font-bold rounded-xl transition">🇪🇸 Spain</button>
+            <button onclick="renderTeams('IT')" class="p-4 bg-white/10 hover:bg-blue-500 text-white font-bold rounded-xl transition">🇮🇹 Italy</button>
+            <button onclick="renderTeams('DE')" class="p-4 bg-white/10 hover:bg-red-600 text-white font-bold rounded-xl transition">🇩🇪 Germany</button>
+            <button onclick="renderTeams('FR')" class="p-4 bg-white/10 hover:bg-blue-800 text-white font-bold rounded-xl transition">🇫🇷 France</button>
+        </div>
+
+        <div id="super-filters" class="hidden grid-cols-4 gap-4 mb-8 w-full max-w-6xl">
+            <button onclick="renderTeams('SL1')" class="p-4 bg-white/10 hover:bg-purple-500 text-white font-bold rounded-xl transition">🥇 Tier 1</button>
+            <button onclick="renderTeams('SL2')" class="p-4 bg-white/10 hover:bg-purple-500 text-white font-bold rounded-xl transition">🥈 Tier 2</button>
+            <button onclick="renderTeams('SL3')" class="p-4 bg-white/10 hover:bg-purple-500 text-white font-bold rounded-xl transition">🥉 Tier 3</button>
+            <button onclick="renderTeams('SL4')" class="p-4 bg-white/10 hover:bg-purple-500 text-white font-bold rounded-xl transition">🎖️ Tier 4</button>
+        </div>
+        
+        <div id="team-selection" class="grid grid-cols-4 gap-4 w-full max-w-6xl max-h-96 overflow-y-auto"></div>
+    </div>
+
+    <div id="create-club-screen" class="fixed inset-0 bg-slate-900 z-50 flex flex-col p-8 overflow-y-auto text-white">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-4xl font-black italic text-emerald-400">CREATE A CLUB</h1>
+            <div class="text-right">
+                <p class="text-sm font-bold text-slate-400 uppercase">Draft Budget</p>
+                <p class="text-3xl font-black text-emerald-500" id="cc-budget">£500.0M</p>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-8">
+            <div class="col-span-1 bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase">Club Name</label>
+                    <input type="text" id="cc-name" class="w-full bg-slate-900 border border-slate-700 p-3 rounded font-bold mt-1 outline-none" placeholder="e.g. AFC Richmond">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 uppercase">Primary Color</label>
+                        <input type="color" id="cc-color1" class="w-full h-10 bg-slate-900 rounded cursor-pointer mt-1" value="#dc2626">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-400 uppercase">Secondary Color</label>
+                        <input type="color" id="cc-color2" class="w-full h-10 bg-slate-900 rounded cursor-pointer mt-1" value="#ffffff">
+                    </div>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase">Club Vision</label>
+                    <select id="cc-vision" class="w-full bg-slate-900 border border-slate-700 p-3 rounded font-bold mt-1 outline-none">
+                        <option>Develop Youth System</option>
+                        <option>Sign High-Reputation Players</option>
+                        <option>Play Attacking Football</option>
+                        <option>Defensive Solidity</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 uppercase">Replace Club (Select League First)</label>
+                    <select id="cc-league" onchange="loadReplaceableClubs()" class="w-full bg-slate-900 border border-slate-700 p-3 rounded font-bold mt-1 mb-2 outline-none">
+                        <option value="EN">England</option><option value="ES">Spain</option><option value="IT">Italy</option><option value="DE">Germany</option><option value="FR">France</option>
+                    </select>
+                    <select id="cc-replace" class="w-full bg-slate-900 border border-slate-700 p-3 rounded font-bold outline-none"></select>
+                </div>
+                <button onclick="finalizeCreatedClub()" class="w-full bg-emerald-600 text-white font-black py-4 rounded-xl hover:bg-emerald-500 mt-4 uppercase">Confirm & Start Career</button>
+            </div>
+            
+            <div class="col-span-2 bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                <h3 class="font-black text-lg uppercase mb-4 text-slate-300 border-b border-slate-700 pb-2">Global Player Draft (Max 25)</h3>
+                <div class="flex space-x-4 mb-4">
+                    <input type="text" id="cc-search" onkeyup="searchDraftPool()" placeholder="Search players..." class="flex-1 bg-slate-900 border border-slate-700 p-2 rounded text-sm outline-none">
+                    <select id="cc-filter-pos" onchange="searchDraftPool()" class="bg-slate-900 border border-slate-700 p-2 rounded text-sm outline-none">
+                        <option value="">All Pos</option><option value="GK">GK</option><option value="DEF">DEF</option><option value="MID">MID</option><option value="ATT">ATT</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-6 h-96">
+                    <div class="overflow-y-auto border border-slate-700 rounded p-2 bg-slate-900" id="cc-draft-pool"></div>
+                    <div class="overflow-y-auto border border-emerald-900 rounded p-2 bg-slate-900 relative">
+                        <div class="sticky top-0 bg-slate-900 p-2 border-b border-slate-700 mb-2 font-black text-emerald-500 text-sm flex justify-between">
+                            <span>Your Squad</span><span id="cc-squad-count">0/25</span>
+                        </div>
+                        <div id="cc-drafted-squad"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="club-modal" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
+        </div>
+
+    <div id="main-app" class="w-full h-full flex flex-col">
+        <header class="bg-slate-900 text-white p-3 flex justify-between items-center z-20">
+            <div class="flex items-center space-x-6">
+                <h1 class="text-xl font-black italic text-blue-400">CFM</h1>
+            </div>
+            <div class="text-right flex items-center space-x-6">
+                <p class="text-xs font-bold text-slate-400" id="ui-date">AUG 1, 2026</p>
+                <p class="text-emerald-400 font-black" id="ui-balance">£45M</p>
+                <button onclick="advanceWeek()" class="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-full font-black text-sm uppercase transition shadow-[0_0_15px_rgba(37,99,235,0.5)]">Continue</button>
+            </div>
+        </header>
+
+        <div class="flex flex-1 overflow-hidden">
+            <aside class="w-56 bg-slate-800 text-slate-300 flex flex-col font-bold text-sm border-r border-slate-700">
+                <div class="p-4 border-b border-slate-700">
+                    <h2 class="text-lg font-black text-white truncate" id="ui-club-name">Club Name</h2>
+                </div>
+                <nav class="flex-1 p-2 space-y-1">
+                    <button onclick="showTab('inbox')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">✉️ Inbox</button>
+                    <button onclick="showTab('squad')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">👕 Squad</button>
+                    <button onclick="showTab('tactics')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">📋 Tactics</button>
+                    <button onclick="showTab('scouting')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">🔍 Scouting</button>
+                    <button onclick="showTab('jobs')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition text-purple-400">👔 Job Center</button>
+                </nav>
+            </aside>
+
+            <main class="flex-1 overflow-y-auto p-6 bg-slate-100 relative">
+                <section id="inbox" class="tab-content active"><div class="max-w-4xl bg-white rounded-2xl shadow-sm border p-6"><h3 class="font-black text-lg uppercase mb-4 border-b pb-2">Inbox</h3><div id="inbox-list" class="space-y-3"></div></div></section>
+
+                <section id="squad" class="tab-content"><div class="bg-white rounded-2xl shadow-sm border p-4"><table class="w-full text-left text-sm"><thead class="text-slate-400 uppercase text-[10px] font-black border-b"><tr><th class="p-3">Name</th><th class="p-3">Nat</th><th class="p-3">Specific Pos</th><th class="p-3">Age</th><th class="p-3 text-center">Ability</th><th class="p-3">Value</th></tr></thead><tbody id="squad-body"></tbody></table></div></section>
+
+                <section id="scouting" class="tab-content">
+                     <div class="bg-white rounded-2xl shadow-sm border p-6 mb-6">
+                        <h3 class="font-black text-lg uppercase mb-4 border-b pb-2">Player Search</h3>
+                        <div class="grid grid-cols-4 gap-4 mb-4">
+                            <input type="text" id="s-name" placeholder="Name..." class="bg-slate-50 p-3 rounded-lg border font-semibold outline-none focus:border-blue-500">
+                            <button onclick="runScoutSearch()" class="bg-slate-800 text-white font-bold rounded-lg hover:bg-slate-900 transition col-span-3">Search Database</button>
+                        </div>
+                        <table class="w-full text-left text-sm"><tbody id="scout-results"></tbody></table>
+                    </div>
+                </section>
+
+                <section id="jobs" class="tab-content"><div class="bg-white rounded-2xl shadow-sm border p-6 max-w-4xl"><h3 class="font-black text-purple-600 text-lg uppercase mb-2">Managerial Job Board</h3><div id="job-list" class="space-y-4"></div></div></section>
+
+                <section id="tactics" class="tab-content">
+                    <div class="grid grid-cols-12 gap-6">
+                        <div class="col-span-4 bg-white p-4 rounded-xl border shadow-sm h-[600px] flex flex-col">
+                            <h3 class="font-black text-xs text-slate-400 uppercase mb-2 border-b pb-2">First XI & Ratings</h3>
+                            <div class="flex-1 overflow-y-auto pr-2" id="tactics-player-list">
+                                </div>
+                        </div>
+
+                        <div class="col-span-6">
+                            <div class="pitch" id="pitch-container"></div>
+                            <p class="text-[10px] text-center font-bold text-slate-400 uppercase mt-2">Drag positions to adjust custom shape</p>
+                        </div>
+
+                        <div class="col-span-2 space-y-4">
+                            <div class="bg-white p-4 rounded-xl border shadow-sm">
+                                <label class="text-[10px] font-black text-slate-400 uppercase">Formation</label>
+                                <select id="form-preset" onchange="loadFormation()" class="w-full mt-1 p-2 bg-slate-50 border rounded font-bold text-xs outline-none">
+                                    <option value="433">4-3-3</option><option value="4231">4-2-3-1</option><option value="442">4-4-2</option><option value="352">3-5-2</option>
+                                </select>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl border shadow-sm">
+                                <label class="text-[10px] font-black text-slate-400 uppercase">Mentality</label>
+                                <select class="w-full mt-1 p-2 bg-slate-50 border rounded font-bold text-xs outline-none">
+                                    <option>Attacking</option><option selected>Balanced</option><option>Defensive</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        /* --- PART 1: EXPANDED DATA DICTIONARIES --- */
+        const NATIONS = {
+            "EN": { m: "ENG", f: "Jack,Harry,Thomas,Oliver,William,James,Charles,George,Arthur,Louis,Henry,Leo,Oscar,Charlie,Jacob,Noah,Mason,Ethan", l: "Smith,Jones,Taylor,Brown,Williams,Wilson,Johnson,Davies,Robinson,Wright,Thompson,Evans,Walker,White,Roberts,Green,Hall,Wood,Clark,Lewis,Young,Scott,Adams,Baker" },
+            "ES": { m: "ESP", f: "Alejandro,Daniel,Pablo,David,Adrian,Alvaro,Javier,Sergio,Carlos,Diego,Jorge,Mario,Raul,Ivan,Manuel,Ruben,Mateo,Hugo", l: "Garcia,Fernandez,Gonzalez,Rodriguez,Lopez,Martinez,Sanchez,Perez,Martin,Gomez,Ruiz,Diaz,Alvarez,Moreno,Munoz,Romero,Navarro,Torres,Iglesias,Ortiz,Rubio,Marin,Sanz,Molina" },
+            "IT": { m: "ITA", f: "Leonardo,Francesco,Alessandro,Lorenzo,Mattia,Andrea,Gabriele,Riccardo,Tommaso,Edoardo,Matteo,Giuseppe,Nicola,Marco,Antonio,Luca,Diego,Luigi", l: "Rossi,Russo,Ferrari,Esposito,Bianchi,Romano,Colombo,Ricci,Marino,Greco,Bruno,Gallo,Conti,De Luca,Costa,Giordano,Mancini,Rizzo,Moretti,Bianco,Conte,Lombardi,Giuliani,Marchetti" },
+            "DE": { m: "GER", f: "Maximilian,Alexander,Paul,Elias,Ben,Noah,Leon,Felix,Luis,Lukas,Jonas,Tim,Finn,Julius,Max,Moritz,Klaus,Hans", l: "Muller,Schmidt,Schneider,Fischer,Weber,Meyer,Wagner,Becker,Schulz,Hoffmann,Schafer,Koch,Bauer,Richter,Klein,Wolf,Schroder,Neumann,Hofmann,Kruse,Lehmann,Zimmermann,Schmitt,Werner" },
+            "FR": { m: "FRA", f: "Gabriel,Leo,Raphael,Arthur,Louis,Lucas,Adam,Jules,Hugo,Mael,Liam,Ethan,Paul,Nathan,Gabin,Sacha,Jean,Pierre", l: "Martin,Bernard,Thomas,Petit,Robert,Richard,Durand,Dubois,Moreau,Laurent,Simon,Michel,Lefevre,Leroy,Roux,David,Bertrand,Morel,Fournier,Girard,Andre,Lefebvre,Mercier,Dupont" },
+            "IS": { m: "ISL", f: "Aron,Gylfi,Johann,Birkir,Ragnar,Kolbeinn,Hordur,Sverrir", l: "Sigurdsson,Gunnarsson,Gudmundsson,Bjarnason,Sigthorsson,Finnbogason,Traustason,Skulason,Halldorsson,Arnason,Palsson,Hermannsson,Ingason,Jonsson,Smarason,Kjartansson" },
+            "DK": { m: "DEN", f: "Christian,Kasper,Simon,Pierre,Andreas,Mikkel,Mads,Jens", l: "Eriksen,Schmeichel,Kjaer,Christensen,Poulsen,Delaney,Braithwaite,Dolberg,Wass,Hojbjerg,Larsen,Jensen,Nielsen,Hansen,Pedersen,Andersen" },
+            "PT": { m: "POR", f: "Cristiano,Bruno,Bernardo,Ruben,Joao,Diogo,Tiago,Nuno", l: "Ronaldo,Fernandes,Silva,Dias,Felix,Jota,Cancelo,Pepe,Moutinho,Guerreiro,Costa,Gomes,Martins,Lopes,Alves,Monteiro" },
+            "NO": { m: "NOR", f: "Erling,Martin,Alexander,Sander,Kristoffer,Joshua,Ole,Henrik", l: "Haaland,Odegaard,Sorloth,Berge,Ajer,King,Elyounoussi,Elabdellaoui,Jarstein,Nyland,Hansen,Johansen,Olsen,Larsen,Andersen,Pedersen" },
+            "SE": { m: "SWE", f: "Zlatan,Emil,Dejan,Victor,Alexander,Robin,Lars,Mikael", l: "Ibrahimovic,Forsberg,Kulusevski,Lindelof,Isak,Olsen,Larsson,Ekdal,Lustig,Augustinsson,Johansson,Andersson,Karlsson,Nilsson,Eriksson,Larsson" },
+            "US": { m: "USA", f: "Christian,Weston,Tyler,Sergino,Gio,Zack,John,Michael", l: "Pulisic,McKennie,Adams,Dest,Reyna,Steffen,Brooks,Robinson,Weah,Sargent,Smith,Johnson,Williams,Brown,Jones,Garcia" },
+            "JP": { m: "JPN", f: "Takefusa,Takumi,Wataru,Daichi,Maya,Yuto,Hiroshi,Kenji", l: "Kubo,Minamino,Endo,Kamada,Yoshida,Nagatomo,Tomiyasu,Ito,Sakai,Osako,Sato,Suzuki,Takahashi,Tanaka,Watanabe,Ito" },
+            "KR": { m: "KOR", f: "Heung-min,Hwang,Kim,Lee,Park,Cho,Min-ho,Ji-hoon", l: "Son,Hee-chan,Min-jae,Kang-in,Ji-sung,Gue-sung,Ui-jo,Jae-sung,Young-gwon,Seung-gyu,Kang,Cho,Yoon,Jang,Lim,Han" },
+            "BR": { m: "BRA", f: "Neymar,Vinicius,Casemiro,Alisson,Ederson,Marquinhos,Lucas,Pedro", l: "Junior,Silva,Becker,Moraes,Correa,Jesus,Firmino,Richarlison,Paqueta,Guimaraes,Santos,Oliveira,Souza,Rodrigues,Ferreira,Alves" },
+            "AR": { m: "ARG", f: "Lionel,Angel,Lautaro,Emiliano,Rodrigo,Enzo,Mateo,Thiago", l: "Messi,Di Maria,Martinez,De Paul,Fernandez,Romero,Otamendi,Alvarez,Mac Allister,Molina,Gomez,Lopez,Gonzalez,Perez,Dominguez,Sosa" }
+        };
+
+        const LEAGUES = {
+            "EN": ["Arsenal Red", "Aston Lions", "Bournemouth Cherries", "Brentford Bees", "Brighton Gulls", "London Blue", "Crystal Eagles", "Everton Blue", "Fulham Cottagers", "Liverpool Red", "Luton Hatters", "Man Blue", "Man Red", "Newcastle Magpies", "Nottingham Trees", "Sheffield Blades", "North London White", "West Ham Irons", "Wolverhampton Wolves", "Burnley Clarets"],
+            "ES": ["Madrid White", "Barcelona Red-Blue", "Girona Red", "Madrid Red-White", "Bilbao Lions", "Sevilla White", "Betis Green", "Sociedad Blue", "Valencia Bats", "Villarreal Yellow", "Getafe Blue", "Alaves Blue", "Osasuna Red", "Celta Sky", "Mallorca Red", "Rayo Slash", "Las Palmas Yellow", "Cadiz Yellow", "Granada Red", "Almeria Red"],
+            "IT": ["Inter Blue", "Milan Red", "Juve Black-White", "Bologna Red-Blue", "Roma Yellow-Red", "Atalanta Blue-Black", "Napoli Sky", "Fiorentina Purple", "Torino Maroon", "Lazio Sky", "Genoa Red-Blue", "Monza Red", "Lecce Yellow-Red", "Udinese Black-White", "Hellas Yellow-Blue", "Cagliari Red-Blue", "Empoli Blue", "Frosinone Yellow", "Sassuolo Green", "Salernitana Garnet"],
+            "DE": ["Munich Red", "Leverkusen Black-Red", "Stuttgart White", "Leipzig Bulls", "Dortmund Yellow", "Frankfurt Eagles", "Freiburg Black-Forest", "Hoffenheim Blue", "Bremen Green", "Heidenheim Blue", "Augsburg Red-Green", "Wolfsburg Green", "Mainz Red", "Monchengladbach Foals", "Union Iron", "Bochum Blue", "Koln Billy Goats", "Darmstadt Lilies"],
+            "FR": ["Paris Blue", "Monaco Red-White", "Brest Red", "Lille Dogs", "Nice Red-Black", "Lens Blood-Gold", "Marseille Sky", "Rennes Red-Black", "Reims Red", "Toulouse Purple", "Strasbourg Blue", "Montpellier Orange", "Lyon Kids", "Nantes Canary", "Le Havre Sky", "Metz Garnet", "Lorient Orange", "Clermont Red"]
+        };
+
+        const POS_MAP = ["GK", "DL", "DC", "DR", "WBL", "WBR", "DM", "MC", "ML", "MR", "AMC", "AML", "AMR", "ST"];
+		/* --- PART 2: CORE ENGINE & CREATE-A-CLUB LOGIC --- */
+        let state = {
+            date: new Date(2026, 7, 1), week: 1,
+            balance: 0, world: [], clubs: [], lowerClubs: [],
+            userClubId: null, mode: 'standard', availableJobs: [], tactics: [],
+            cc: { budget: 500000000, squad: [], color1: '', color2: '', name: '', vision: '', replaceId: null }
+        };
+
+        function formatVal(v) { return "£" + (v >= 1000000 ? (v/1000000).toFixed(1) + 'M' : (v/1000).toFixed(0) + 'K'); }
+
+        // Adjacency map for positional familiarity (20=Natural, 15=Accomplished, 10=Competent)
+        const POS_ADJ = {
+            "GK": ["GK"], "DL": ["WBL", "DC", "ML"], "DC": ["DL", "DR", "DM"], "DR": ["WBR", "DC", "MR"],
+            "WBL": ["DL", "ML", "AML"], "WBR": ["DR", "MR", "AMR"], "DM": ["MC", "DC"], 
+            "MC": ["DM", "AMC", "ML", "MR"], "ML": ["WBL", "AML", "MC"], "MR": ["WBR", "AMR", "MC"],
+            "AMC": ["MC", "ST", "AML", "AMR"], "AML": ["ML", "AMC", "ST"], "AMR": ["MR", "AMC", "ST"], "ST": ["AMC", "AML", "AMR"]
+        };
+
+        function createPlayer(natCode) {
+            const age = Math.floor(Math.random() * 20) + 16;
+            const natPos = POS_MAP[Math.floor(Math.random()*POS_MAP.length)];
+            
+            // Generate Familiarity Dictionary
+            let fam = {}; 
+            POS_MAP.forEach(p => fam[p] = 1); // 1 = Awkward
+            fam[natPos] = 20; // 20 = Natural
+            
+            // Assign secondary positions
+            let adjs = POS_ADJ[natPos].sort(() => 0.5 - Math.random());
+            if(adjs[0]) fam[adjs[0]] = 15; // Accomplished
+            if(adjs[1]) fam[adjs[1]] = 10; // Competent
+
+            const pa = Math.floor(Math.random() * 80) + 100;
+            let ca;
+            let pS = (natPos === 'GK' || natPos === 'DC') ? 27 : 24; // Peak start age
+            let pE = (natPos === 'GK' || natPos === 'DC') ? 33 : 31; // Peak end age
+            
+            if(age < pS) ca = Math.floor(pa * (0.4 + (0.6 * ((age - 15) / (pS - 15)))));
+            else if (age > pE) ca = Math.floor(pa * (1 - (0.3 * ((age - pE) / (38 - pE)))));
+            else ca = pa;
+            ca = Math.min(200, Math.max(10, ca));
+            
+            let n = NATIONS[natCode] || NATIONS["EN"];
+            let name = n.f.split(",")[Math.floor(Math.random()*n.f.split(",").length)] + " " + n.l.split(",")[Math.floor(Math.random()*n.l.split(",").length)];
+
+            return {
+                id: Math.random().toString(36).substr(2, 9),
+                name: name, nat: n.m, age: age, ca: ca, pa: pa,
+                natPos: natPos, fam: fam,
+                val: Math.floor((ca/100) * (200/age) * 2000000)
+            };
+        }
+
+        function initWorld() {
+            let cid = 0;
+            for(let c in LEAGUES) {
+                // Generate Main Division
+                LEAGUES[c].forEach(team => {
+                    let rep = Math.floor(Math.random() * 60) + 35;
+                    let club = { id: cid++, name: team, nation: c, rep: rep, squad: [], league: c, points: 0, budget: Math.floor(rep * rep * 15000), isUser: false };
+                    for(let i=0; i<25; i++) {
+                        let p = createPlayer(c); p.ca += Math.floor((rep - 50) / 3); p.val = Math.floor((p.ca/100) * (200/p.age) * 2000000);
+                        club.squad.push(p); state.world.push(p);
+                    }
+                    state.clubs.push(club);
+                });
+                
+                // Generate Hidden Lower Division (for Promotion/Relegation system)
+                for(let i=1; i<=6; i++) {
+                    let club = { id: cid++, name: c + " City " + i, nation: c, rep: 30, squad: [], league: c+"_LOW", points: 0, budget: 2000000, isUser: false };
+                    for(let j=0; j<22; j++) { let p = createPlayer(c); club.squad.push(p); state.world.push(p); }
+                    state.lowerClubs.push(club);
+                }
+            }
+        }
+
+        /* --- STANDARD MODE UI --- */
+        function setMode(m) {
+            state.mode = m;
+            document.getElementById('league-filters').style.display = m === 'standard' ? 'grid' : 'none';
+            document.getElementById('super-filters').style.display = m === 'super' ? 'grid' : 'none';
+            document.getElementById('team-selection').innerHTML = '';
+            
+            if(m === 'super') {
+                state.clubs.sort((a,b) => b.rep - a.rep);
+                state.clubs.forEach((c, i) => {
+                    if(i < 20) c.league = 'SL1'; else if(i < 40) c.league = 'SL2'; else if(i < 60) c.league = 'SL3'; else c.league = 'SL4';
+                });
+            } else {
+                state.clubs.forEach(c => c.league = c.nation); // Reset
+            }
+        }
+
+        function renderTeams(filter) {
+            const cont = document.getElementById('team-selection');
+            let filtered = state.clubs.filter(c => c.league === filter).sort((a,b) => b.rep - a.rep);
+            cont.innerHTML = filtered.map(c => `<button onclick="openStandardClub(${c.id})" class="bg-slate-800 text-white p-3 rounded-lg text-sm font-bold hover:bg-emerald-600 truncate transition">${c.name}</button>`).join('');
+        }
+
+        function openStandardClub(id) {
+            const c = state.clubs.find(x => x.id === id);
+            document.getElementById('club-modal').innerHTML = `
+                <div class="bg-white rounded-2xl w-full max-w-2xl p-8 relative">
+                    <button onclick="closeClubModal()" class="absolute top-4 right-4 font-black text-red-500 text-xl">X</button>
+                    <h2 class="text-4xl font-black text-slate-900 mb-1 uppercase italic">${c.name}</h2>
+                    <div class="flex items-center space-x-4 mb-6"><p class="text-sm font-bold text-slate-500 uppercase">${NATIONS[c.nation].m}</p><p class="text-sm font-black text-purple-600 bg-purple-100 px-3 py-1 rounded-full uppercase">Rep: ${c.rep}</p></div>
+                    <div class="grid grid-cols-2 gap-6 bg-slate-50 p-6 rounded-xl border">
+                        <div><h3 class="font-black text-xs text-slate-400 uppercase">Transfer Budget</h3><p class="text-2xl font-black text-emerald-600">${formatVal(c.budget)}</p></div>
+                        <div><button onclick="takeJob(${id})" class="mt-2 w-full bg-blue-600 text-white font-black py-3 rounded-lg hover:bg-blue-700 uppercase">Sign Contract</button></div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('club-modal').style.display = 'flex';
+        }
+        function closeClubModal() { document.getElementById('club-modal').style.display = 'none'; }
+
+        /* --- CREATE-A-CLUB LOGIC --- */
+        function openCreateClub() {
+            state.mode = 'create';
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('create-club-screen').style.display = 'flex';
+            loadReplaceableClubs(); searchDraftPool();
+        }
+
+        function loadReplaceableClubs() {
+            const lg = document.getElementById('cc-league').value;
+            const clubs = state.clubs.filter(c => c.league === lg).sort((a,b) => a.name.localeCompare(b.name));
+            document.getElementById('cc-replace').innerHTML = clubs.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        }
+
+        function searchDraftPool() {
+            const q = document.getElementById('cc-search').value.toLowerCase();
+            const pos = document.getElementById('cc-filter-pos').value;
+            const draftedIds = state.cc.squad.map(p => p.id);
+            
+            let pool = state.world.filter(p => !draftedIds.includes(p.id) && p.val <= state.cc.budget && 
+                (!q || p.name.toLowerCase().includes(q)) && (!pos || p.natPos === pos)
+            ).sort((a,b) => b.val - a.val).slice(0, 50);
+
+            document.getElementById('cc-draft-pool').innerHTML = pool.map(p => `
+                <div class="flex justify-between items-center p-2 border-b border-slate-700 hover:bg-slate-800 transition">
+                    <div>
+                        <p class="font-bold text-sm">${p.name} <span class="text-[10px] text-slate-400 ml-1">${p.nat}</span></p>
+                        <p class="text-[10px] text-emerald-400 font-black">${p.natPos} | CA: ${p.ca}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs font-bold text-slate-300">${formatVal(p.val)}</p>
+                        <button onclick="draftPlayer('${p.id}')" class="px-3 py-1 bg-emerald-600 rounded text-[10px] font-black uppercase mt-1 hover:bg-emerald-500">Draft</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function draftPlayer(id) {
+            if(state.cc.squad.length >= 25) return alert("Squad full! Max 25 players.");
+            const p = state.world.find(x => x.id === id);
+            if(p.val > state.cc.budget) return alert("Not enough budget!");
+            
+            state.cc.budget -= p.val;
+            state.cc.squad.push(p);
+            
+            // Remove from original club
+            let oldClub = state.clubs.find(c => c.squad.includes(p)) || state.lowerClubs.find(c => c.squad.includes(p));
+            if(oldClub) oldClub.squad = oldClub.squad.filter(x => x.id !== id);
+
+            updateDraftUI();
+        }
+
+        function releasePlayerCC(id) {
+            const p = state.cc.squad.find(x => x.id === id);
+            state.cc.budget += p.val;
+            state.cc.squad = state.cc.squad.filter(x => x.id !== id);
+            updateDraftUI();
+        }
+
+        function updateDraftUI() {
+            document.getElementById('cc-budget').innerText = formatVal(state.cc.budget);
+            document.getElementById('cc-squad-count').innerText = `${state.cc.squad.length}/25`;
+            document.getElementById('cc-drafted-squad').innerHTML = state.cc.squad.map(p => `
+                <div class="flex justify-between items-center p-2 border-b border-slate-700 bg-slate-800">
+                    <div><p class="font-bold text-xs">${p.name}</p><p class="text-[10px] text-emerald-400">${p.natPos}</p></div>
+                    <button onclick="releasePlayerCC('${p.id}')" class="text-red-500 font-black text-xs px-2">X</button>
+                </div>
+            `).join('');
+            searchDraftPool();
+        }
+
+        function finalizeCreatedClub() {
+            if(state.cc.squad.length < 15) return alert("Draft at least 15 players!");
+            const name = document.getElementById('cc-name').value || "Custom FC";
+            const repId = parseInt(document.getElementById('cc-replace').value);
+            const repClub = state.clubs.find(c => c.id === repId);
+            
+            const customClub = {
+                id: 9999, name: name, nation: repClub.nation, rep: 65,
+                squad: state.cc.squad, league: repClub.league, points: 0,
+                budget: state.cc.budget, isUser: true,
+                colors: [document.getElementById('cc-color1').value, document.getElementById('cc-color2').value],
+                vision: document.getElementById('cc-vision').value
+            };
+
+            // Process Replacement
+            state.clubs = state.clubs.filter(c => c.id !== repId);
+            state.clubs.push(customClub);
+            
+            takeJob(9999, customClub);
+        }
+
+        function takeJob(id, customData = null) {
+            state.userClubId = id;
+            const club = customData || state.clubs.find(x => x.id === id);
+            state.balance = club.budget;
+            
+            closeClubModal(); 
+            document.getElementById('start-screen').style.display = 'none'; 
+            document.getElementById('create-club-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            
+            document.getElementById('ui-club-name').innerText = club.name;
+            if(club.colors) document.getElementById('ui-club-name').style.color = club.colors[0];
+            
+            document.getElementById('inbox-list').innerHTML = '';
+            logMessage(`<b>Welcome to ${club.name}!</b><br>The board has provided a transfer budget of <span class="text-emerald-600 font-bold">${formatVal(club.budget)}</span>.`);
+            
+            loadFormation(); refreshUI(); generateJobs();
+        }
+		/* --- PART 3: UI, TACTICS ASSIGNMENT, MATCH SIM & PROGRESSION --- */
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function logMessage(msg) {
+            const inbox = document.getElementById('inbox-list');
+            inbox.innerHTML = `<div class="p-4 bg-slate-50 border-l-4 border-blue-500 rounded text-sm">${msg}</div>` + inbox.innerHTML;
+        }
+
+        function refreshUI() {
+            document.getElementById('ui-balance').innerText = formatVal(state.balance);
+            const club = state.clubs.find(x => x.id === state.userClubId);
+            
+            // Render Squad with new granular positions
+            document.getElementById('squad-body').innerHTML = club.squad.sort((a,b)=>b.ca-a.ca).map(p => `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="p-3 font-bold">${p.name}</td>
+                    <td class="p-3 text-[10px] font-black text-slate-400">${p.nat}</td>
+                    <td class="p-3 text-xs">
+                        <span class="font-black text-emerald-600">${p.natPos}</span>
+                        ${Object.keys(p.fam).filter(k => p.fam[k] === 15).length > 0 ? `<br><span class="text-[10px] text-slate-400">Acc: ${Object.keys(p.fam).filter(k => p.fam[k] === 15).join(', ')}</span>` : ''}
+                    </td>
+                    <td class="p-3">${p.age}</td>
+                    <td class="p-3 font-bold text-blue-600 text-center">${p.ca} <span class="text-[10px] text-slate-400">/ ${p.pa}</span></td>
+                    <td class="p-3 font-bold text-emerald-600">${formatVal(p.val)}</td>
+                </tr>
+            `).join('');
+
+            renderTacticsList();
+        }
+
+        /* --- TACTICS & STAR RATINGS --- */
+        function getStarRating(ca, famLvl) {
+            // Base stars on CA (relative to a 200 scale), heavily penalized by familiarity
+            let effectiveCA = ca * (famLvl / 20);
+            let stars = Math.max(0.5, Math.min(5, Math.round((effectiveCA / 180) * 5 * 2) / 2));
+            
+            let html = '';
+            for(let i=1; i<=5; i++) {
+                if(stars >= i) html += '★';
+                else if(stars >= i - 0.5) html += '⯪'; // Half star
+                else html += '☆';
+            }
+            return `<span class="star-rating">${html}</span>`;
+        }
+
+        function loadFormation() {
+            const pre = document.getElementById('form-preset').value; 
+            // 11 tactical nodes with specific roles
+            if(pre === '433') state.tactics = [{id:'GK', x:50,y:90, pid:null}, {id:'DL', x:15,y:75, pid:null}, {id:'DC', x:35,y:80, pid:null}, {id:'DC', x:65,y:80, pid:null}, {id:'DR', x:85,y:75, pid:null}, {id:'MC', x:35,y:50, pid:null}, {id:'DM', x:50,y:60, pid:null}, {id:'MC', x:65,y:50, pid:null}, {id:'AML', x:20,y:25, pid:null}, {id:'ST', x:50,y:15, pid:null}, {id:'AMR', x:80,y:25, pid:null}];
+            else if(pre === '4231') state.tactics = [{id:'GK', x:50,y:90, pid:null}, {id:'DL', x:15,y:75, pid:null}, {id:'DC', x:35,y:80, pid:null}, {id:'DC', x:65,y:80, pid:null}, {id:'DR', x:85,y:75, pid:null}, {id:'DM', x:40,y:60, pid:null}, {id:'DM', x:60,y:60, pid:null}, {id:'AML', x:20,y:35, pid:null}, {id:'AMC', x:50,y:35, pid:null}, {id:'AMR', x:80,y:35, pid:null}, {id:'ST', x:50,y:15, pid:null}];
+            else if(pre === '442') state.tactics = [{id:'GK', x:50,y:90, pid:null}, {id:'DL', x:15,y:75, pid:null}, {id:'DC', x:35,y:80, pid:null}, {id:'DC', x:65,y:80, pid:null}, {id:'DR', x:85,y:75, pid:null}, {id:'ML', x:15,y:45, pid:null}, {id:'MC', x:35,y:45, pid:null}, {id:'MC', x:65,y:45, pid:null}, {id:'MR', x:85,y:45, pid:null}, {id:'ST', x:40,y:15, pid:null}, {id:'ST', x:60,y:15, pid:null}];
+            else if(pre === '352') state.tactics = [{id:'GK', x:50,y:90, pid:null}, {id:'DC', x:25,y:80, pid:null}, {id:'DC', x:50,y:80, pid:null}, {id:'DC', x:75,y:80, pid:null}, {id:'WBL', x:10,y:55, pid:null}, {id:'MC', x:35,y:50, pid:null}, {id:'DM', x:50,y:60, pid:null}, {id:'MC', x:65,y:50, pid:null}, {id:'WBR', x:90,y:55, pid:null}, {id:'ST', x:40,y:15, pid:null}, {id:'ST', x:60,y:15, pid:null}];
+            
+            renderPitch(); renderTacticsList();
+        }
+
+        let draggedNode = null;
+        function renderPitch() {
+            const p = document.getElementById('pitch-container');
+            p.innerHTML = state.tactics.map((pos, i) => `
+                <div class="tac-node ${pos.pid ? 'bg-emerald-600' : 'bg-red-600'}" draggable="true" data-idx="${i}" style="left:${pos.x}%; top:${pos.y}%;" ondragstart="dragStart(event)" ondragend="dragEnd(event)">
+                    ${pos.id}
+                </div>
+            `).join('');
+            p.ondragover = (e) => e.preventDefault();
+        }
+
+        function dragStart(e) { draggedNode = e.target; }
+        function dragEnd(e) {
+            if(!draggedNode) return;
+            const pitch = document.getElementById('pitch-container').getBoundingClientRect();
+            let x = ((e.clientX - pitch.left) / pitch.width) * 100; let y = ((e.clientY - pitch.top) / pitch.height) * 100;
+            x = Math.max(5, Math.min(95, x)); y = Math.max(5, Math.min(95, y));
+            const idx = draggedNode.getAttribute('data-idx');
+            state.tactics[idx].x = x; state.tactics[idx].y = y;
+            
+            // Snap to nearest recognized position based on coordinates
+            if(y > 85) state.tactics[idx].id = 'GK';
+            else if(y > 65) {
+                if(x < 25) state.tactics[idx].id = 'DL'; else if(x > 75) state.tactics[idx].id = 'DR'; else state.tactics[idx].id = 'DC';
+            }
+            else if(y > 55) {
+                if(x < 25) state.tactics[idx].id = 'WBL'; else if(x > 75) state.tactics[idx].id = 'WBR'; else state.tactics[idx].id = 'DM';
+            }
+            else if(y > 40) {
+                if(x < 25) state.tactics[idx].id = 'ML'; else if(x > 75) state.tactics[idx].id = 'MR'; else state.tactics[idx].id = 'MC';
+            }
+            else if(y > 25) {
+                if(x < 25) state.tactics[idx].id = 'AML'; else if(x > 75) state.tactics[idx].id = 'AMR'; else state.tactics[idx].id = 'AMC';
+            }
+            else state.tactics[idx].id = 'ST';
+
+            renderPitch(); renderTacticsList();
+        }
+
+        function assignPlayer(nodeIdx, playerId) {
+            state.tactics[nodeIdx].pid = playerId;
+            renderPitch(); renderTacticsList();
+        }
+
+        function renderTacticsList() {
+            const club = state.clubs.find(x => x.id === state.userClubId);
+            if(!club) return;
+
+            document.getElementById('tactics-player-list').innerHTML = state.tactics.map((node, i) => {
+                let selectedPlayer = club.squad.find(p => p.id === node.pid);
+                let starDisplay = selectedPlayer ? getStarRating(selectedPlayer.ca, selectedPlayer.fam[node.id] || 1) : '<span class="text-slate-300">No Player</span>';
+                
+                let options = `<option value="">-- Select --</option>` + club.squad.sort((a,b)=>b.ca-a.ca).map(p => {
+                    let isSelected = p.id === node.pid ? 'selected' : '';
+                    let famMark = p.fam[node.id] === 20 ? '🟢' : p.fam[node.id] === 15 ? '🟡' : p.fam[node.id] === 10 ? '🟠' : '🔴';
+                    return `<option value="${p.id}" ${isSelected}>${famMark} ${p.name} (${p.natPos})</option>`;
+                }).join('');
+
+                return `
+                    <div class="mb-3 border-b pb-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-black text-slate-800 text-xs w-8">${node.id}</span>
+                            ${starDisplay}
+                        </div>
+                        <select onchange="assignPlayer(${i}, this.value)" class="w-full text-[10px] p-1 border rounded bg-slate-50 outline-none font-bold text-slate-600">
+                            ${options}
+                        </select>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /* --- JOB CENTER --- */
+        function generateJobs() {
+            let candidates = state.clubs.filter(c => c.id !== state.userClubId && !c.isUser).sort(() => 0.5 - Math.random()).slice(0, 3);
+            state.availableJobs = candidates;
+            document.getElementById('job-list').innerHTML = candidates.map(c => `
+                <div class="flex justify-between items-center p-4 bg-slate-50 border rounded-lg hover:shadow transition">
+                    <div><h4 class="font-black text-slate-800">${c.name}</h4><p class="text-xs font-bold text-slate-500">Rep: ${c.rep} | Budget: ${formatVal(c.budget)} | League: ${c.league}</p></div>
+                    <button onclick="takeJob(${c.id})" class="px-4 py-2 bg-purple-600 text-white font-bold rounded hover:bg-purple-700 text-xs uppercase shadow">Apply</button>
+                </div>
+            `).join('');
+        }
+
+        /* --- SIMULATION ENGINE --- */
+        function calculateTeamStrength(club) {
+            if(club.id === state.userClubId) {
+                // User strength based on active tactic lineup
+                let str = 0;
+                state.tactics.forEach(node => {
+                    let p = club.squad.find(x => x.id === node.pid);
+                    if(p) str += p.ca * (p.fam[node.id] || 1) / 20;
+                });
+                return str / 11; // Avg CA of starting 11
+            } else {
+                // AI strength based on top 11 players
+                let top11 = club.squad.sort((a,b)=>b.ca-a.ca).slice(0, 11);
+                return top11.reduce((sum, p) => sum + p.ca, 0) / 11;
+            }
+        }
+
+        function simulateMatch(home, away) {
+            let hStr = calculateTeamStrength(home) + 5; // Home advantage
+            let aStr = calculateTeamStrength(away);
+            
+            let hGoals = Math.max(0, Math.round((Math.random() * (hStr / 40)) - 0.5));
+            let aGoals = Math.max(0, Math.round((Math.random() * (aStr / 40)) - 0.5));
+            
+            if(hGoals > aGoals) { home.points += 3; return {res: 'W', opp: away.name, score: `${hGoals}-${aGoals}`}; }
+            else if(aGoals > hGoals) { away.points += 3; return {res: 'L', opp: away.name, score: `${hGoals}-${aGoals}`}; }
+            else { home.points += 1; away.points += 1; return {res: 'D', opp: away.name, score: `${hGoals}-${aGoals}`}; }
+        }
+
+        function runYouthDevelopment() {
+            state.world.forEach(p => {
+                let pS = (p.natPos === 'GK' || p.natPos === 'DC') ? 27 : 24; 
+                let pE = (p.natPos === 'GK' || p.natPos === 'DC') ? 33 : 31;
+                
+                if(p.age < pS && p.ca < p.pa) {
+                    p.ca += Math.floor(Math.random() * 3); // Growth
+                } else if(p.age > pE) {
+                    p.ca -= Math.floor(Math.random() * 2); // Decay
+                }
+                p.ca = Math.min(200, Math.max(10, p.ca));
+                p.val = Math.floor((p.ca/100) * (200/p.age) * 2000000);
+            });
+        }
+
+        function advanceWeek() {
+            // Check if tactic is filled
+            const myClub = state.clubs.find(c => c.id === state.userClubId);
+            const emptyNodes = state.tactics.filter(n => !n.pid).length;
+            if(emptyNodes > 0 && myClub) {
+                alert(`You have ${emptyNodes} empty slots in your tactics! Please assign players.`);
+                return showTab('tactics');
+            }
+
+            state.week++;
+            state.date.setDate(state.date.getDate() + 7);
+            document.getElementById('ui-date').innerText = state.date.toDateString().toUpperCase() + ` (Wk ${state.week})`;
+            
+            // Development every 4 weeks
+            if(state.week % 4 === 0) runYouthDevelopment();
+
+            // End of season
+            if(state.week > 38) {
+                processEndOfSeason();
+                return;
+            }
+
+            // Simulate League Matches
+            let userResult = null;
+            let leaguesToSim = [...new Set(state.clubs.map(c => c.league))];
+            
+            leaguesToSim.forEach(lg => {
+                let lgClubs = state.clubs.filter(c => c.league === lg);
+                // Simple random pairing for the week
+                let shuffled = lgClubs.sort(() => 0.5 - Math.random());
+                for(let i=0; i<shuffled.length; i+=2) {
+                    if(!shuffled[i+1]) break;
+                    let match = simulateMatch(shuffled[i], shuffled[i+1]);
+                    
+                    if(shuffled[i].id === state.userClubId) userResult = match;
+                    else if(shuffled[i+1].id === state.userClubId) {
+                        // Invert result for away perspective
+                        userResult = {
+                            res: match.res === 'W' ? 'L' : match.res === 'L' ? 'W' : 'D',
+                            opp: shuffled[i].name,
+                            score: match.score.split('-').reverse().join('-')
+                        };
+                    }
+                }
+            });
+
+            // Simulate Lower Leagues internally
+            let lowLeagues = [...new Set(state.lowerClubs.map(c => c.league))];
+            lowLeagues.forEach(lg => {
+                let lgClubs = state.lowerClubs.filter(c => c.league === lg);
+                let shuffled = lgClubs.sort(() => 0.5 - Math.random());
+                for(let i=0; i<shuffled.length; i+=2) {
+                    if(shuffled[i+1]) simulateMatch(shuffled[i], shuffled[i+1]);
+                }
+            });
+
+            // Handle UI Updates
+            if(userResult) {
+                let color = userResult.res === 'W' ? 'text-emerald-600' : userResult.res === 'L' ? 'text-red-600' : 'text-slate-600';
+                logMessage(`<b>Match Result</b><br>You played against ${userResult.opp}. Result: <span class="font-black ${color}">${userResult.res} (${userResult.score})</span>`);
+            } else {
+                logMessage(`<b>Matchweek Complete</b><br>No fixture for you this week.`);
+            }
+
+            if(Math.random() > 0.7) generateJobs();
+            refreshUI();
+        }
+
+        function processEndOfSeason() {
+            logMessage(`<span class="text-purple-600 font-black text-lg">SEASON COMPLETE</span><br>Processing promotion, relegation, and youth intake...`);
+            
+            let leaguesToSim = [...new Set(state.clubs.map(c => c.league))];
+            
+            leaguesToSim.forEach(lg => {
+                // Sort main league
+                let mainClubs = state.clubs.filter(c => c.league === lg).sort((a,b) => b.points - a.points);
+                // Sort lower league
+                let lowerClubs = state.lowerClubs.filter(c => c.league === lg + "_LOW").sort((a,b) => b.points - a.points);
+                
+                if(lowerClubs.length > 0 && mainClubs.length > 3) {
+                    // Bottom 3 of main
+                    let relegated = mainClubs.slice(-3);
+                    // Top 3 of lower
+                    let promoted = lowerClubs.slice(0, 3);
+                    
+                    // Swap leagues
+                    relegated.forEach(c => { c.league = lg + "_LOW"; c.points = 0; });
+                    promoted.forEach(c => { c.league = lg; c.points = 0; });
+                    
+                    // Move in arrays
+                    state.clubs = state.clubs.filter(c => !relegated.includes(c)).concat(promoted);
+                    state.lowerClubs = state.lowerClubs.filter(c => !promoted.includes(c)).concat(relegated);
+                    
+                    if(relegated.find(c => c.id === state.userClubId)) {
+                        alert("You have been relegated! The board has sacked you.");
+                        state.userClubId = null;
+                        document.getElementById('main-app').style.display = 'none';
+                        document.getElementById('start-screen').style.display = 'flex';
+                        setMode('standard');
+                    }
+                } else {
+                    mainClubs.forEach(c => c.points = 0);
+                }
+            });
+
+            // Age players & Retires
+            state.world = state.world.filter(p => {
+                p.age++;
+                if(p.age > 35 && Math.random() > 0.5) {
+                    // Retire player, remove from clubs
+                    state.clubs.forEach(c => c.squad = c.squad.filter(sp => sp.id !== p.id));
+                    state.lowerClubs.forEach(c => c.squad = c.squad.filter(sp => sp.id !== p.id));
+                    return false;
+                }
+                return true;
+            });
+
+            // Youth Intake (Generate new 16yo players)
+            state.clubs.forEach(c => {
+                for(let i=0; i<3; i++) {
+                    let p = createPlayer(c.nation);
+                    p.age = 16;
+                    c.squad.push(p);
+                    state.world.push(p);
+                }
+            });
+
+            state.week = 1;
+            state.date.setFullYear(state.date.getFullYear() + 1);
+            state.date.setMonth(7); // Reset to August
+            state.date.setDate(1);
+            
+            refreshUI();
+            if(state.userClubId) {
+                let myClub = state.clubs.find(c => c.id === state.userClubId);
+                myClub.budget += Math.floor(myClub.rep * 100000); // New season budget
+                state.balance = myClub.budget;
+                logMessage(`<b>New Season Begins</b><br>The board has reset expectations and given you a fresh budget of ${formatVal(state.balance)}.`);
+            }
+        }
+
+        // Initialize!
+        initWorld();
+
+    </script>
+</body>
+</html>
