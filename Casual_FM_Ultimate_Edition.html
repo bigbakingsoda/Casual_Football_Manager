@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Casual FM: Ultimate Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; user-select: none; }
+        .tab-content, #main-app, #club-modal, #player-page, #club-page, #draft-screen, #club-select-screen { display: none; }
+        .tab-content.active { display: block; }
+        .pitch { 
+            background: #15803d; border: 4px solid white; border-radius: 10px; 
+            position: relative; width: 100%; height: 500px; 
+            background-image: linear-gradient(rgba(255,255,255,0.3) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,0.3) 2px, transparent 2px); background-size: 50px 50px;
+        }
+        .pitch::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100px; height: 100px; border: 2px solid rgba(255,255,255,0.5); border-radius: 50%; }
+        .pitch::after { content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: rgba(255,255,255,0.5); }
+        .tac-node { position: absolute; width: 36px; height: 36px; background: #dc2626; color: white; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; cursor: grab; transform: translate(-50%, -50%); z-index: 10; }
+        .star-rating { color: #eab308; letter-spacing: -2px; font-size: 14px;}
+        .history-btn { position: absolute; top: 1rem; left: 1rem; z-index: 70; }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden text-slate-800 relative">
+
+    <div id="start-screen" class="fixed inset-0 bg-slate-900 z-[100] flex flex-col items-center justify-center p-8 overflow-y-auto">
+        <h1 class="text-6xl font-black text-white italic mb-2 tracking-tighter">CASUAL FM</h1>
+        <p class="text-slate-400 font-bold mb-6 uppercase tracking-widest">Select Game Mode</p>
+        
+        <div class="mb-6 bg-slate-800 p-4 rounded-xl flex items-center space-x-3 border border-slate-700">
+            <input type="checkbox" id="setting-masking" class="w-5 h-5 cursor-pointer">
+            <label for="setting-masking" class="text-white font-bold cursor-pointer">Show All Player Data (Disable Attribute Masking)</label>
+        </div>
+
+        <div class="flex space-x-4 mb-8">
+            <button onclick="startStandardMode()" class="px-6 py-4 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-500 transition border border-blue-400">🌍 Pick A Club</button>
+            <button onclick="startDraftMode()" class="px-6 py-4 bg-purple-600 text-white font-black rounded-xl hover:bg-purple-500 transition border border-purple-400">🃏 Fantasy Draft</button>
+        </div>
+    </div>
+
+    <div id="club-select-screen" class="fixed inset-0 bg-slate-800 z-[90] flex flex-col items-center p-8 overflow-y-auto">
+        <h2 class="text-4xl font-black text-white mb-6 uppercase">Select Your Club</h2>
+        <div id="league-filters" class="flex space-x-4 mb-8 w-full max-w-6xl justify-center">
+            <button onclick="renderClubSelection('EN')" class="p-4 bg-white/10 hover:bg-blue-600 text-white font-bold rounded-xl transition">🏴󠁧󠁢󠁥󠁮󠁧󠁿 England</button>
+            <button onclick="renderClubSelection('ES')" class="p-4 bg-white/10 hover:bg-yellow-500 text-white font-bold rounded-xl transition">🇪🇸 Spain</button>
+            <button onclick="renderClubSelection('IT')" class="p-4 bg-white/10 hover:bg-blue-500 text-white font-bold rounded-xl transition">🇮🇹 Italy</button>
+            <button onclick="renderClubSelection('DE')" class="p-4 bg-white/10 hover:bg-red-600 text-white font-bold rounded-xl transition">🇩🇪 Germany</button>
+            <button onclick="renderClubSelection('FR')" class="p-4 bg-white/10 hover:bg-blue-800 text-white font-bold rounded-xl transition">🇫🇷 France</button>
+        </div>
+        <div id="club-selection-grid" class="grid grid-cols-4 gap-4 w-full max-w-6xl max-h-[600px] overflow-y-auto"></div>
+    </div>
+
+    <div id="draft-screen" class="fixed inset-0 bg-slate-900 z-[90] flex flex-col p-8 overflow-y-auto text-white">
+        <div class="max-w-6xl w-full mx-auto flex flex-col h-full">
+            <h2 class="text-4xl font-black mb-2 uppercase text-purple-400">Fantasy Draft</h2>
+            <p id="draft-status" class="text-lg font-bold mb-6 text-slate-300">Round 1 - Your Pick</p>
+            
+            <div class="grid grid-cols-12 gap-6 flex-1 overflow-hidden">
+                <div class="col-span-8 bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col">
+                    <div class="flex justify-between mb-4">
+                        <h3 class="font-black uppercase">Available Players</h3>
+                        <input type="text" id="draft-search" placeholder="Search..." class="p-1 rounded text-black font-bold text-sm" oninput="renderDraftPool()">
+                    </div>
+                    <div class="flex-1 overflow-y-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="text-slate-400 uppercase text-[10px] font-black border-b border-slate-600">
+                                <tr><th>Name</th><th>Pos</th><th>CA / PA</th><th>Value</th><th>Action</th></tr>
+                            </thead>
+                            <tbody id="draft-pool-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="col-span-4 bg-slate-800 rounded-xl border border-slate-700 p-4 flex flex-col">
+                    <h3 class="font-black uppercase mb-4 text-emerald-400">Your Squad (<span id="draft-count">0</span>/25)</h3>
+                    <div class="flex-1 overflow-y-auto" id="draft-user-squad"></div>
+                    <button id="draft-finish-btn" class="hidden mt-4 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 rounded uppercase" onclick="finishDraft()">Start Season</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-app" class="w-full h-full flex flex-col">
+        <header class="bg-slate-900 text-white p-3 flex justify-between items-center z-20">
+            <h1 class="text-xl font-black italic text-blue-400">CFM <span class="text-sm text-slate-500">Ultimate</span></h1>
+            <div class="text-right flex items-center space-x-6">
+                <p class="text-xs font-bold text-slate-400" id="ui-date">AUG 1, 2026</p>
+                <p class="text-emerald-400 font-black" id="ui-balance">£0</p>
+                <button onclick="advanceEvent()" class="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-full font-black text-sm uppercase transition shadow-[0_0_15px_rgba(37,99,235,0.5)]">Continue ➡️</button>
+            </div>
+        </header>
+		<div class="flex flex-1 overflow-hidden">
+            <aside class="w-56 bg-slate-800 text-slate-300 flex flex-col font-bold text-sm border-r border-slate-700">
+                <div class="p-4 border-b border-slate-700">
+                    <h2 class="text-lg font-black text-white truncate cursor-pointer hover:text-blue-400 transition" id="ui-club-name">Club</h2>
+                </div>
+                <nav class="flex-1 p-2 space-y-1">
+                    <button onclick="showTab('inbox')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition flex justify-between items-center">
+                        <span>✉️ Inbox</span> 
+                        <span id="inbox-badge" class="bg-red-500 text-white rounded-full px-2 py-0.5 text-[10px] hidden">!</span>
+                    </button>
+                    <button onclick="showTab('squad')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">👕 Squad</button>
+                    <button onclick="showTab('tactics')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">📋 Tactics</button>
+                    <button onclick="showTab('competitions')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">🏆 Competitions</button>
+                    <button onclick="showTab('scouting')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">🔍 Scouting</button>
+                    <button onclick="showTab('transfers')" class="w-full text-left px-4 py-2 rounded hover:bg-slate-700 hover:text-white transition">🤝 Transfers</button>
+                </nav>
+            </aside>
+
+            <main class="flex-1 overflow-y-auto p-6 bg-slate-100 relative">
+                
+                <section id="inbox" class="tab-content active">
+                    <div class="max-w-4xl bg-white rounded-2xl shadow-sm border p-6">
+                        <h3 class="font-black text-lg uppercase mb-4 border-b pb-2">Mailbox</h3>
+                        <div id="inbox-list" class="space-y-3"></div>
+                    </div>
+                </section>
+
+                <section id="squad" class="tab-content">
+                    <div class="bg-white rounded-2xl shadow-sm border p-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="text-slate-400 uppercase text-[10px] font-black border-b">
+                                <tr>
+                                    <th class="p-3">Name</th>
+                                    <th class="p-3">Pos</th>
+                                    <th class="p-3">Best Role Rating</th>
+                                    <th class="p-3">Market Value</th>
+                                </tr>
+                            </thead>
+                            <tbody id="squad-body"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section id="competitions" class="tab-content">
+                    <div class="grid grid-cols-12 gap-6">
+                        <div class="col-span-8 space-y-6">
+                            <div class="bg-white rounded-2xl shadow-sm border p-6">
+                                <h3 class="font-black text-lg uppercase mb-4 border-b pb-2">League Table</h3>
+                                <table class="w-full text-left text-sm">
+                                    <thead class="text-slate-400 uppercase text-[10px] font-black border-b">
+                                        <tr><th>Pos</th><th>Club</th><th>Pld</th><th>GF</th><th>GD</th><th>Pts</th></tr>
+                                    </thead>
+                                    <tbody id="league-table"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="col-span-4 space-y-6">
+                            <div class="bg-white rounded-2xl shadow-sm border p-6">
+                                <h3 class="font-black text-sm uppercase mb-4 border-b pb-2">Top Scorers</h3>
+                                <div id="stats-scorers" class="space-y-2 text-sm"></div>
+                            </div>
+                            <div class="bg-white rounded-2xl shadow-sm border p-6">
+                                <h3 class="font-black text-sm uppercase mb-4 border-b pb-2">Top Assisters</h3>
+                                <div id="stats-assists" class="space-y-2 text-sm"></div>
+                            </div>
+                            <div class="bg-white rounded-2xl shadow-sm border p-6">
+                                <h3 class="font-black text-sm uppercase mb-4 border-b pb-2">Most Yellow Cards</h3>
+                                <div id="stats-yellows" class="space-y-2 text-sm"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="tactics" class="tab-content">
+                    <div class="grid grid-cols-12 gap-6">
+                        <div class="col-span-5 bg-white p-4 rounded-xl border shadow-sm flex flex-col h-[600px]">
+                            <div class="flex justify-between items-center mb-2 border-b pb-2">
+                                <h3 class="font-black text-xs text-slate-400 uppercase">First XI Selection</h3>
+                                <button onclick="quickPick()" class="text-[10px] bg-blue-600 text-white px-3 py-1 rounded font-black uppercase hover:bg-blue-500 transition shadow">⚡ Quick Pick</button>
+                            </div>
+                            <div class="flex-1 overflow-y-auto pr-2" id="tactics-player-list"></div>
+                        </div>
+                        <div class="col-span-5">
+                            <div class="pitch" id="pitch-container"></div>
+                        </div>
+                        <div class="col-span-2 space-y-4">
+                            <label class="text-xs font-black text-slate-400 uppercase">Formation</label>
+                            <select id="form-preset" onchange="loadFormation()" class="w-full p-2 bg-white border rounded font-bold text-xs">
+                                <option value="433">4-3-3</option>
+                                <option value="4231">4-2-3-1</option>
+                                <option value="442">4-4-2</option>
+                            </select>
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="scouting" class="tab-content">
+                    <div class="bg-white rounded-2xl shadow-sm border p-6 max-w-5xl">
+                        <div class="flex justify-between items-end border-b pb-4 mb-4">
+                            <div>
+                                <h3 class="font-black text-lg uppercase">Scouting Network</h3>
+                                <p class="text-xs font-bold text-slate-500 mt-1">Hire scouts to reveal hidden attributes, PA, and PrA.</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase">Weekly Scouting Budget</p>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <input type="range" id="scout-budget" min="500" max="5000" step="100" value="1000" oninput="document.getElementById('scout-budget-val').innerText = '£' + this.value + '/wk'" class="w-32 cursor-pointer">
+                                    <span id="scout-budget-val" class="font-black text-sm text-blue-600 w-16 text-right">£1000/wk</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex space-x-4 mb-4">
+                            <input type="text" id="scout-search" placeholder="Search player name..." class="p-2 border rounded text-sm w-1/3 font-bold">
+                            <select id="scout-pos" class="p-2 border rounded text-sm w-1/4 font-bold"><option value="">Any Position</option></select>
+                            <button onclick="renderScoutedPlayers()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white font-black rounded text-sm transition">Filter</button>
+                        </div>
+                        <div class="overflow-y-auto max-h-[400px]">
+                            <table class="w-full text-left text-sm">
+                                <thead class="text-slate-400 uppercase text-[10px] font-black border-b sticky top-0 bg-white">
+                                    <tr><th class="pb-2">Name</th><th class="pb-2">Pos</th><th class="pb-2">Knowledge</th><th class="pb-2">Est. Value</th></tr>
+                                </thead>
+                                <tbody id="scout-list"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="transfers" class="tab-content">
+                    <div class="bg-white rounded-2xl shadow-sm border p-6 max-w-4xl">
+                        <h3 class="font-black text-lg uppercase mb-4 border-b pb-2">Transfer Center</h3>
+                        <p class="text-sm font-bold text-slate-500">Review pending offers and market activity across the globe.</p>
+                        <div id="transfer-list" class="mt-4 space-y-3"></div>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <div id="player-page" class="fixed inset-0 bg-slate-100 z-[80] flex flex-col p-8 overflow-y-auto">
+        <button onclick="closePlayerPage()" class="history-btn px-4 py-2 bg-slate-800 text-white font-bold rounded hover:bg-slate-700 shadow-lg">⬅️ Back</button>
+        <div class="max-w-6xl mx-auto w-full mt-10">
+            <div class="flex justify-between items-end border-b-4 border-slate-300 pb-4 mb-6">
+                <div>
+                    <h2 class="text-5xl font-black text-slate-900 uppercase italic" id="pp-name">Player Name</h2>
+                    <p class="text-emerald-600 font-bold uppercase text-lg" id="pp-bio">Pos • Nat • Age</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-slate-500 font-bold uppercase">Market Value</p>
+                    <p class="text-3xl font-black text-blue-600" id="pp-value">£0</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-12 gap-6">
+                <div class="col-span-4 bg-white p-6 rounded-xl border shadow-sm">
+                    <h3 class="font-black text-slate-800 uppercase text-sm mb-4 border-b pb-1">Core Attributes</h3>
+                    <div id="pp-attributes" class="space-y-2 text-sm font-bold"></div>
+                    <div id="pp-hidden-stats" class="mt-6 border-t pt-4"></div>
+                </div>
+
+                <div class="col-span-4 space-y-6">
+                    <div class="bg-white p-6 rounded-xl border shadow-sm">
+                        <h3 class="font-black text-slate-800 uppercase text-sm mb-4 border-b pb-1">Positional Impact</h3>
+                        <p class="text-[10px] text-slate-400 font-bold mb-3 uppercase leading-tight">Effectiveness in tactical slots. Natural (100%), Accom. (85%), Comp. (70%), Awkward Sim. (50%), Awkward (20%).</p>
+                        <div id="pp-fam" class="space-y-2 text-sm font-bold"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border shadow-sm">
+                        <h3 class="font-black text-slate-800 uppercase text-sm mb-4 border-b pb-1">Training & Form</h3>
+                        <label class="font-bold text-slate-600 text-xs">Positional Focus (+1% Impact / Wk)</label>
+                        <select id="pp-train-pos" onchange="setTrainingFocus(this.value)" class="w-full mt-1 p-2 border rounded text-xs font-bold bg-slate-50 focus:ring focus:ring-blue-200 outline-none"></select>
+                        <div class="flex justify-between mt-4 bg-slate-50 p-3 rounded border">
+                            <div class="text-center"><p class="text-[10px] text-slate-400 font-bold uppercase">Training Rating</p><p class="font-black text-xl text-emerald-600" id="pp-train-rating">-</p></div>
+                            <div class="text-center"><p class="text-[10px] text-slate-400 font-bold uppercase">Match Rating</p><p class="font-black text-xl text-blue-600" id="pp-match-rating">-</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-span-4 space-y-6">
+                    <div class="bg-white p-6 rounded-xl border shadow-sm">
+                        <h3 class="font-black text-slate-800 uppercase text-sm mb-4 border-b pb-1">Contract Status</h3>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between"><span class="text-slate-500 font-bold">Salary</span><span class="font-black" id="pp-salary"></span></div>
+                            <div class="flex justify-between"><span class="text-slate-500 font-bold">Expires</span><span class="font-black" id="pp-expiry"></span></div>
+                            <div class="flex justify-between border-t pt-2 mt-2"><span class="text-slate-500 font-bold">Interest in Joining</span><span class="font-black text-purple-600" id="pp-interest"></span></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl border shadow-sm">
+                        <h3 class="font-black text-slate-800 uppercase text-sm mb-4 border-b pb-1">Concerns & Dynamics</h3>
+                        <p id="pp-concerns" class="text-sm font-bold text-slate-600 italic">No current concerns.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+	<script>
+        /* --- GLOBAL STATE --- */
+        const state = {
+            world: [],
+            clubs: [],
+            userClubId: null,
+            balance: 0,
+            date: new Date(2026, 7, 1),
+            events: [],
+            tactics: [],
+            scoutedDict: {},
+            showAllData: false,
+            isDraftMode: false,
+            draftRound: 1,
+            draftPool: [],
+            userDraftSquad: []
+        };
+
+        const POS_MAP = ['GK', 'DL', 'DC', 'DR', 'DM', 'MC', 'AML', 'AMR', 'ST'];
+
+        /* --- IMMENSE LOCALIZATION NAMES DATABASE --- */
+        const NAMES_DB = {
+            EN: {
+                first: ['Jack', 'Harry', 'Charlie', 'Thomas', 'James', 'William', 'Oliver', 'George', 'Alfie', 'Joshua', 'Arthur', 'Henry', 'Archie', 'Leo'],
+                last: ['Smith', 'Jones', 'Taylor', 'Brown', 'Williams', 'Wilson', 'Johnson', 'Davies', 'Robinson', 'Wright', 'Thompson', 'Evans', 'Walker', 'White', 'Roberts', 'Green', 'Hall', 'Wood', 'Jackson', 'Clarke']
+            },
+            ES: {
+                first: ['Hugo', 'Lucas', 'Martín', 'Daniel', 'Alejandro', 'Mateo', 'Leo', 'Álvaro', 'Manuel', 'Pablo', 'Mario', 'Diego', 'Javier', 'Carlos'],
+                last: ['García', 'Rodríguez', 'González', 'Fernández', 'López', 'Martínez', 'Sánchez', 'Pérez', 'Gómez', 'Martín', 'Jiménez', 'Ruiz', 'Hernández', 'Diaz', 'Moreno', 'Muñoz', 'Álvarez', 'Romero', 'Alonso', 'Gutiérrez']
+            },
+            IT: {
+                first: ['Leonardo', 'Francesco', 'Alessandro', 'Lorenzo', 'Mattia', 'Andrea', 'Gabriele', 'Riccardo', 'Tommaso', 'Edoardo', 'Matteo', 'Giuseppe', 'Antonio', 'Giovanni'],
+                last: ['Rossi', 'Russo', 'Ferrari', 'Esposito', 'Bianchi', 'Romano', 'Colombo', 'Ricci', 'Marino', 'Greco', 'Bruno', 'Gallo', 'Conti', 'De Luca', 'Costa', 'Giordano', 'Mancini', 'Rizzo', 'Lombardi', 'Moretti']
+            },
+            DE: {
+                first: ['Ben', 'Jonas', 'Leon', 'Elias', 'Finn', 'Noah', 'Luis', 'Lukas', 'Felix', 'Maximilian', 'Henry', 'Theo', 'Paul', 'Emil'],
+                last: ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Meyer', 'Wagner', 'Becker', 'Schulz', 'Hoffmann', 'Schäfer', 'Koch', 'Bauer', 'Richter', 'Klein', 'Wolf', 'Schröder', 'Neumann', 'Schwarz', 'Zimmermann']
+            },
+            FR: {
+                first: ['Gabriel', 'Léo', 'Raphaël', 'Louis', 'Arthur', 'Nathan', 'Lucas', 'Hugo', 'Enzo', 'Jules', 'Liam', 'Ethan', 'Noah', 'Théo'],
+                last: ['Martin', 'Bernard', 'Thomas', 'Petit', 'Robert', 'Richard', 'Durand', 'Dubois', 'Moreau', 'Laurent', 'Simon', 'Michel', 'Lefebvre', 'Leroy', 'Roux', 'David', 'Bertrand', 'Fournier', 'Girard', 'Bonnet']
+            }
+        };
+
+        /* --- CLUB AND LEAGUE TEMPLATES --- */
+        const CLUB_TEMPLATES = [
+            //🏴󠁧󠁢󠁥󠁮󠁧󠁿 England
+            { id: 'en_manc', name: 'Manchester Blue', nat: 'EN', budget: 150000000 },
+            { id: 'en_lonr', name: 'London Reds', nat: 'EN', budget: 95000000 },
+            { id: 'en_meri', name: 'Merseyside Red', nat: 'EN', budget: 110000000 },
+            { id: 'en_tyne', name: 'Tyneside Black', nat: 'EN', budget: 130000000 },
+            //🇪🇸 Spain
+            { id: 'es_madw', name: 'Madrid Whites', nat: 'ES', budget: 160000000 },
+            { id: 'es_barc', name: 'Barcelona Blau', nat: 'ES', budget: 85000000 },
+            { id: 'es_atlm', name: 'Madrid Atletico', nat: 'ES', budget: 75000000 },
+            { id: 'es_sevi', name: 'Sevilla Reds', nat: 'ES', budget: 45000000 },
+            //🇮🇹 Italy
+            { id: 'it_milan', name: 'Milan Devils', nat: 'IT', budget: 60000000 },
+            { id: 'it_turin', name: 'Turin Zebras', nat: 'IT', budget: 90000000 },
+            { id: 'it_inter', name: 'Inter Blacks', nat: 'IT', budget: 70000000 },
+            { id: 'it_roma', name: 'Rome Wolves', nat: 'IT', budget: 50000000 },
+            //🇩🇪 Germany
+            { id: 'de_muni', name: 'Munich Reds', nat: 'DE', budget: 140000000 },
+            { id: 'de_dort', name: 'Dortmund Yellows', nat: 'DE', budget: 65000000 },
+            { id: 'de_leip', name: 'Leipzig Bulls', nat: 'DE', budget: 70000000 },
+            { id: 'de_leve', name: 'Leverkusen Pillmen', nat: 'DE', budget: 55000000 },
+            //🇫🇷 France
+            { id: 'fr_pari', name: 'Paris Capitals', nat: 'FR', budget: 200000000 },
+            { id: 'fr_mars', name: 'Marseille Blues', nat: 'FR', budget: 40000000 },
+            { id: 'fr_lyon', name: 'Lyon Kids', nat: 'FR', budget: 35000000 },
+            { id: 'fr_mona', name: 'Monaco Princes', nat: 'FR', budget: 50000000 }
+        ];
+
+        /* --- UTILITY GENERATORS --- */
+        function formatVal(v) {
+            if (v >= 1000000) return '£' + (v / 1000000).toFixed(1) + 'M';
+            if (v >= 1000) return '£' + (v / 1000).toFixed(0) + 'K';
+            return '£' + v;
+        }
+
+        function createPlayer(nat, forcePosition = null) {
+            let db = NAMES_DB[nat] || NAMES_DB['EN'];
+            let name = db.first[Math.floor(Math.random() * db.first.length)] + " " + db.last[Math.floor(Math.random() * db.last.length)];
+            
+            let age = Math.floor(Math.random() * 11) + 17; // 17 - 27 base generator
+            if (Math.random() > 0.85) age = Math.floor(Math.random() * 8) + 28; // Veteran expansion 28-35
+            
+            let pos = forcePosition || POS_MAP[Math.floor(Math.random() * POS_MAP.length)];
+            
+            // Core attributes setup
+            let attrs = { Attack: 10, Defend: 10, Speed: 10, Technical: 10, Tactical: 10, Stamina: 10 };
+            let baseQuality = Math.floor(Math.random() * 40) + 45; // 45-85 initial variance
+            
+            Object.keys(attrs).forEach(k => {
+                attrs[k] = Math.max(1, Math.min(100, baseQuality + (Math.floor(Math.random() * 21) - 10)));
+            });
+
+            // Position specific attribute molding
+            if (pos === 'GK') { attrs.Defend += 20; attrs.Attack -= 30; }
+            if (pos === 'ST') { attrs.Attack += 20; attrs.Defend -= 25; }
+            if (pos.includes('AM') || pos.includes('W')) { attrs.Speed += 15; attrs.Technical += 15; attrs.Defend -= 15; }
+            if (pos.startsWith('D')) { attrs.Defend += 15; attrs.Attack -= 15; }
+
+            // Clamping attributes safely between 1-100
+            Object.keys(attrs).forEach(k => attrs[k] = Math.max(1, Math.min(100, attrs[k])));
+
+            // Calculate Ability Metrics
+            let ca = Math.floor(Object.values(attrs).reduce((a,b)=>a+b,0) / 6);
+            let pa = Math.min(100, ca + Math.floor(Math.random() * 20));
+            let pra = Math.min(pa, Math.floor(ca + ((pa - ca) * 0.6)));
+
+            // Deep Position Familiarity Map Builder
+            let fam = {};
+            POS_MAP.forEach(p => {
+                if (p === pos) fam[p] = 100; // Natural
+                else if ((pos.startsWith('D') && p.startsWith('D')) || (pos.includes('M') && p.includes('M'))) fam[p] = 85; // Accommodating
+                else if (pos.charAt(pos.length-1) === p.charAt(p.length-1)) fam[p] = 70; // Competent
+                else if (pos === 'GK' || p === 'GK') fam[p] = 20; // Awkward
+                else fam[p] = 50; // Awkward Sim
+            });
+
+            // Formula Based Market Value Configuration
+            let val = Math.floor(((ca * 0.75) + (pra * 0.33) + (pa * 0.25)) * 150000);
+            let salary = Math.floor((ca * 400) * (1 + (age/40)));
+
+            return {
+                id: Math.random().toString(36).substr(2, 9),
+                name, age, nat, natPos: pos, trainPos: pos,
+                attrs, ca, pa, pra, fam, val, salary,
+                goals: 0, assists: 0, yellows: 0,
+                contractExp: (2026 + Math.floor(Math.random() * 5)) + "/06/30",
+                interest: Math.floor(Math.random() * 7) + 3,
+                concerns: 'Happy with current ranking and playing parameters.',
+                trainingRating: Math.random() * 3 + 6.5,
+                matchRating: 0
+            };
+        }
+
+        /* --- WORLD INITIALIZATION FACTORY --- */
+        function initWorld() {
+            state.clubs = CLUB_TEMPLATES.map(t => ({
+                ...t, squad: [], pld: 0, gf: 0, gd: 0, points: 0
+            }));
+
+            state.world = [];
+            
+            // Build the core AI & User League assets
+            state.clubs.forEach(club => {
+                // Ensure a realistic, balanced squad allocation
+                let distribution = ['GK','GK','DL','DL','DC','DC','DC','DR','DR','DM','DM','MC','MC','MC','AML','AML','AMR','AMR','ST','ST','ST'];
+                distribution.forEach(pos => {
+                    let player = createPlayer(club.nat, pos);
+                    club.squad.push(player);
+                    state.world.push(player);
+                });
+                // Pad to 25 man squad
+                for (let i = 0; i < 4; i++) {
+                    let player = createPlayer(club.nat);
+                    club.squad.push(player);
+                    state.world.push(player);
+                }
+            });
+
+            // Generate an active, unattached scout pool
+            for(let i=0; i<120; i++){
+                let randomNat = ['EN','ES','IT','DE','FR'][Math.floor(Math.random()*5)];
+                state.world.push(createPlayer(randomNat));
+            }
+
+            // Populate scouting filters UI
+            const posFilter = document.getElementById('scout-pos');
+            if (posFilter) {
+                posFilter.innerHTML = `<option value="">Any Position</option>` + POS_MAP.map(p => `<option value="${p}">${p}</option>`).join('');
+            }
+        }
+		/* --- GAME MODES SETUP --- */
+        function startStandardMode() {
+            state.isDraftMode = false;
+            state.showAllData = document.getElementById('setting-masking').checked;
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('club-select-screen').style.display = 'flex';
+            renderClubSelection('EN'); // Default to show English clubs first
+        }
+
+        function renderClubSelection(nat) {
+            const grid = document.getElementById('club-selection-grid');
+            let filteredClubs = state.clubs.filter(c => c.nat === nat);
+            
+            grid.innerHTML = filteredClubs.map(c => `
+                <div onclick="selectClub('${c.id}')" class="p-6 bg-slate-700 hover:bg-blue-600 rounded-xl border border-slate-600 text-center cursor-pointer transition transform hover:-translate-y-1 shadow-lg">
+                    <h3 class="text-xl font-black text-white mb-2">${c.name}</h3>
+                    <p class="text-xs text-slate-300 font-bold uppercase tracking-wider">Transfer Budget</p>
+                    <p class="text-emerald-400 font-black text-lg">${formatVal(c.budget)}</p>
+                    <p class="text-[10px] text-slate-400 font-bold mt-2">Squad Count: ${c.squad.length}</p>
+                </div>
+            `).join('');
+        }
+
+        function selectClub(clubId) {
+            let club = state.clubs.find(c => c.id === clubId);
+            state.userClubId = club.id;
+            state.balance = club.budget;
+            
+            document.getElementById('ui-club-name').innerText = club.name;
+            document.getElementById('ui-balance').innerText = formatVal(state.balance);
+            
+            document.getElementById('club-select-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            
+            generateEvents(7); // Create initial weekly cycle
+            showTab('inbox');
+            refreshUI();
+        }
+
+        /* --- FANTASY DRAFT ENGINE --- */
+        function startDraftMode() {
+            state.isDraftMode = true;
+            state.showAllData = document.getElementById('setting-masking').checked;
+            state.draftRound = 1;
+            state.userDraftSquad = [];
+            
+            // Clear all pre-existing club squads to prep for fantasy draft distribution
+            state.clubs.forEach(c => c.squad = []);
+            
+            // Collect the entire database of players into a unified pool
+            state.draftPool = [...state.world];
+            
+            // Force assign user to the first club template as their draft vessel
+            let club = state.clubs[0];
+            state.userClubId = club.id;
+            state.balance = 100000000; // Unified baseline draft budget
+            document.getElementById('ui-club-name').innerText = club.name + " (Draft)";
+            
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('draft-screen').style.display = 'flex';
+            
+            renderDraftPool();
+        }
+
+        function renderDraftPool() {
+            const search = document.getElementById('draft-search').value.toLowerCase();
+            let body = document.getElementById('draft-pool-body');
+            
+            // Filter pool by user string matching
+            let filtered = state.draftPool;
+            if (search) {
+                filtered = filtered.filter(p => p.name.toLowerCase().includes(search));
+            }
+
+            // Sort remaining pool elements by descending baseline Current Ability
+            filtered.sort((a, b) => b.ca - a.ca);
+
+            body.innerHTML = filtered.slice(0, 30).map(p => {
+                let caDisplay = state.showAllData ? p.ca : '??';
+                let paDisplay = state.showAllData ? p.pa : '??';
+                
+                return `
+                    <tr class="border-b border-slate-700 hover:bg-slate-800">
+                        <td class="p-3 font-bold">${p.name} <span class="text-[10px] text-slate-400">(${p.age})</span></td>
+                        <td class="p-3 text-emerald-400 font-black">${p.natPos}</td>
+                        <td class="p-3 font-mono text-xs text-blue-400 font-bold">${caDisplay} / ${paDisplay}</td>
+                        <td class="p-3 font-bold text-slate-300">${formatVal(p.val)}</td>
+                        <td class="p-3">
+                            <button onclick="draftPlayer('${p.id}')" class="px-3 py-1 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs uppercase rounded transition">Pick</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function draftPlayer(playerId) {
+            let idx = state.draftPool.findIndex(p => p.id === playerId);
+            if (idx === -1) return;
+            
+            let player = state.draftPool.splice(idx, 1)[0];
+            
+            // Attach to user roster
+            let userClub = state.clubs.find(c => c.id === state.userClubId);
+            userClub.squad.push(player);
+            state.userDraftSquad.push(player);
+            
+            // Mark as tracked within scouting dict if masking is enabled
+            state.scoutedDict[player.id] = true;
+
+            document.getElementById('draft-count').innerText = state.userDraftSquad.length;
+            
+            // Update tracking pane
+            document.getElementById('draft-user-squad').innerHTML = state.userDraftSquad.map(p => `
+                <div class="p-2 bg-slate-700 rounded border border-slate-600 flex justify-between items-center mb-1 text-xs">
+                    <span class="font-bold">${p.name}</span>
+                    <span class="bg-purple-900 px-2 py-0.5 rounded text-[10px] font-black">${p.natPos}</span>
+                </div>
+            `).join('');
+
+            // Execute automated AI drafting selections for other league spots
+            runAIDraftTurn();
+
+            state.draftRound++;
+            
+            if (state.userDraftSquad.length >= 25 || state.draftPool.length === 0) {
+                document.getElementById('draft-status').innerText = "Draft Complete! Review your squad assets.";
+                document.getElementById('draft-finish-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('draft-status').innerText = `Round ${state.draftRound} - Your Pick`;
+                renderDraftPool();
+            }
+        }
+
+        function runAIDraftTurn() {
+            // All AI clubs make a thematic logical selection based on maximum remaining ability value
+            state.clubs.forEach(club => {
+                if (club.id === state.userClubId) return; // Skip user
+                if (state.draftPool.length === 0) return;
+
+                // Simple high-ability sort search criteria for computer logic allocation
+                state.draftPool.sort((a, b) => b.ca - a.ca);
+                
+                // Introduce slight variance so AI clubs don't always pick the absolute top player linear style
+                let poolSlice = Math.min(5, state.draftPool.length);
+                let choiceIdx = Math.floor(Math.random() * poolSlice);
+                
+                let selectedAIPlayer = state.draftPool.splice(choiceIdx, 1)[0];
+                club.squad.push(selectedAIPlayer);
+            });
+        }
+
+        function finishDraft() {
+            document.getElementById('draft-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'flex';
+            
+            generateEvents(7);
+            showTab('inbox');
+            refreshUI();
+        }
+		/* --- TACTICS & PITCH NODE POSITIONING ENGINE --- */
+        const FORMATION_PRESETS = {
+            '433': [
+                { id: 'GK', top: '85%', left: '50%' },
+                { id: 'DL', top: '65%', left: '15%' }, { id: 'DC1', top: '70%', left: '38%' }, { id: 'DC2', top: '70%', left: '62%' }, { id: 'DR', top: '65%', left: '85%' },
+                { id: 'DM', top: '48%', left: '50%' }, { id: 'MC1', top: '35%', left: '33%' }, { id: 'MC2', top: '35%', left: '67%' },
+                { id: 'AML', top: '15%', left: '15%' }, { id: 'AMR', top: '15%', left: '85%' }, { id: 'ST', top: '10%', left: '50%' }
+            ],
+            '4231': [
+                { id: 'GK', top: '85%', left: '50%' },
+                { id: 'DL', top: '65%', left: '15%' }, { id: 'DC1', top: '70%', left: '38%' }, { id: 'DC2', top: '70%', left: '62%' }, { id: 'DR', top: '65%', left: '85%' },
+                { id: 'MC1', top: '50%', left: '35%' }, { id: 'MC2', top: '50%', left: '65%' },
+                { id: 'AML', top: '25%', left: '15%' }, { id: 'AMC', top: '25%', left: '50%' }, { id: 'AMR', top: '25%', left: '85%' },
+                { id: 'ST', top: '10%', left: '50%' }
+            ],
+            '442': [
+                { id: 'GK', top: '85%', left: '50%' },
+                { id: 'DL', top: '65%', left: '15%' }, { id: 'DC1', top: '70%', left: '38%' }, { id: 'DC2', top: '70%', left: '62%' }, { id: 'DR', top: '65%', left: '85%' },
+                { id: 'ML', top: '40%', left: '15%' }, { id: 'MC1', top: '40%', left: '38%' }, { id: 'MC2', top: '40%', left: '62%' }, { id: 'MR', top: '40%', left: '85%' },
+                { id: 'ST1', top: '12%', left: '35%' }, { id: 'ST2', top: '12%', left: '65%' }
+            ]
+        };
+
+        function loadFormation() {
+            const presetKey = document.getElementById('form-preset').value;
+            const coords = FORMATION_PRESETS[presetKey];
+            
+            state.tactics = coords.map(c => ({ id: c.id, top: c.top, left: c.left, pid: null }));
+            
+            // Draw interactive dots on the tactical pitch view
+            const container = document.getElementById('pitch-container');
+            container.innerHTML = state.tactics.map((node, i) => `
+                <div class="tac-node" id="node-viz-${i}" style="top: ${node.top}; left: ${node.left};">
+                    ${node.id}
+                </div>
+            `).join('');
+
+            renderTacticsList();
+        }
+
+        function getStarRating(pct) {
+            let stars = Math.round(((pct || 20) / 100) * 5);
+            return `<span class="star-rating">${'★'.repeat(stars)}${'☆'.repeat(5 - stars)}</span>`;
+        }
+
+        function renderTacticsList() {
+            const club = state.clubs.find(x => x.id === state.userClubId);
+            if (!club) return;
+            
+            let usedPids = state.tactics.map(t => t.pid).filter(id => id !== null);
+
+            document.getElementById('tactics-player-list').innerHTML = state.tactics.map((node, i) => {
+                let p = club.squad.find(x => x.id === node.pid);
+                let positionAffinKey = node.id.replace(/[0-9]/g, ''); // Convert AMC1/ST2 variants back to baseline maps
+                let impact = p ? p.fam[positionAffinKey] || 20 : 0;
+                
+                // Track node visual updates simultaneously
+                const nodeEl = document.getElementById(`node-viz-${i}`);
+                if (nodeEl) {
+                    nodeEl.className = p ? `tac-node bg-emerald-600 border-2 border-white` : `tac-node bg-red-600 border-2 border-white`;
+                    nodeEl.innerText = p ? p.name.split(' ')[1].substring(0, 4) : node.id;
+                }
+
+                let options = `<option value="">-- Vacant Slot --</option>` + club.squad.map(sq => {
+                    if (usedPids.includes(sq.id) && sq.id !== node.pid) return ''; // Block multi-slot mapping
+                    let currentAffinity = sq.fam[positionAffinKey] || 20;
+                    let isSel = sq.id === node.pid ? 'selected' : '';
+                    return `<option value="${sq.id}" ${isSel}>[${currentAffinity}%] ${sq.name} (${sq.natPos})</option>`;
+                }).join('');
+
+                return `
+                    <div class="mb-3 border-b pb-2 bg-slate-50 p-2 rounded">
+                        <div class="flex justify-between items-center text-[10px] mb-1">
+                            <span class="font-black text-slate-800 bg-slate-200 px-2 py-0.5 rounded">${node.id}</span>
+                            <span class="font-bold">Slot Impact: <strong class="${impact >= 70 ? 'text-emerald-600' : 'text-red-500'}">${impact}%</strong></span>
+                        </div>
+                        <select onchange="assignPlayer(${i}, this.value)" class="w-full text-xs p-1 border rounded bg-white font-bold outline-none focus:border-blue-500">${options}</select>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function assignPlayer(nodeIndex, pid) {
+            state.tactics[nodeIndex].pid = pid ? pid : null;
+            renderTacticsList();
+        }
+
+        function quickPick() {
+            const club = state.clubs.find(x => x.id === state.userClubId);
+            let sortedRoster = [...club.squad].sort((a, b) => b.ca - a.ca);
+            
+            // Clear current selection matrix safely
+            state.tactics.forEach(t => t.pid = null);
+
+            state.tactics.forEach(node => {
+                let positionAffinKey = node.id.replace(/[0-9]/g, '');
+                
+                // Find highest current available player with compatibility >= 70%
+                let choice = sortedRoster.find(p => !state.tactics.some(t => t.pid === p.id) && (p.fam[positionAffinKey] || 20) >= 70);
+                
+                // Fallback to highest raw asset remaining if specialized profiles are missing
+                if (!choice) {
+                    choice = sortedRoster.find(p => !state.tactics.some(t => t.pid === p.id));
+                }
+                
+                if (choice) node.pid = choice.id;
+            });
+
+            renderTacticsList();
+        }
+
+        /* --- PLAYER INTERACTIVE DIALOG MODAL MAPS --- */
+        let activeProfileId = null;
+
+        function openPlayer(pid) {
+            activeProfileId = pid;
+            let p = state.world.find(x => x.id === pid);
+            if (!p) return;
+
+            let userClub = state.clubs.find(c => c.id === state.userClubId);
+            let isScoutedOrOwned = state.showAllData || state.scoutedDict[p.id] || (userClub && userClub.squad.some(s => s.id === p.id));
+
+            document.getElementById('pp-name').innerText = p.name;
+            document.getElementById('pp-bio').innerText = `${p.natPos} • ${p.nat} • Age ${p.age}`;
+            document.getElementById('pp-value').innerText = formatVal(p.val);
+            document.getElementById('pp-salary').innerText = formatVal(p.salary);
+            document.getElementById('pp-expiry').innerText = p.contractExp;
+            document.getElementById('pp-interest').innerText = p.interest;
+            document.getElementById('pp-concerns').innerText = p.concerns;
+            
+            document.getElementById('pp-train-rating').innerText = p.trainingRating.toFixed(1);
+            document.getElementById('pp-match-rating').innerText = p.matchRating > 0 ? p.matchRating.toFixed(1) : 'N/A';
+
+            // Handle standard Attribute Masking logic
+            document.getElementById('pp-attributes').innerHTML = Object.keys(p.attrs).map(k => {
+                let displayVal = isScoutedOrOwned ? p.attrs[k] : `${Math.max(1, p.attrs[k] - 2)} - ${Math.min(100, p.attrs[k] + 3)}`;
+                return `<div class="flex justify-between border-b pb-1"><span>${k}</span><span class="text-blue-600 font-black">${displayVal}</span></div>`;
+            }).join('');
+
+            // Hide/Show complete Potential metrics block based on knowledge configuration
+            if (isScoutedOrOwned) {
+                document.getElementById('pp-hidden-stats').innerHTML = `
+                    <div class="p-3 bg-emerald-50 rounded border border-emerald-200 text-xs text-emerald-800 font-bold space-y-1">
+                        <div class="flex justify-between"><span>Current Ability (CA):</span><span>${p.ca}/100</span></div>
+                        <div class="flex justify-between"><span>Projected Ability (PrA):</span><span>${p.pra}/100</span></div>
+                        <div class="flex justify-between"><span>Potential Ability (PA):</span><span>${p.pa}/100</span></div>
+                    </div>`;
+            } else {
+                document.getElementById('pp-hidden-stats').innerHTML = `
+                    <div class="p-3 bg-red-50 rounded border border-red-200 text-xs text-red-700 font-bold">
+                        ⚠️ High-fidelity potential metrics locked. Assign active scouting resources to process detailed tracking cards.
+                    </div>`;
+            }
+
+            // Draw positional affinity ratings elements
+            document.getElementById('pp-fam').innerHTML = Object.keys(p.fam).map(k => `
+                <div class="flex justify-between text-xs pb-1 border-b"><span>${k} Slot Placement</span><span>${p.fam[k]}% Effectiveness</span></div>
+            `).join('');
+
+            // Setup training focus configuration tools
+            document.getElementById('pp-train-pos').innerHTML = POS_MAP.map(pos => `
+                <option value="${pos}" ${p.trainPos === pos ? 'selected' : ''}>${pos} Training Protocol</option>
+            `).join('');
+
+            document.getElementById('player-page').style.display = 'flex';
+        }
+
+        function closePlayerPage() {
+            document.getElementById('player-page').style.display = 'none';
+        }
+
+        function setTrainingFocus(pos) {
+            let p = state.world.find(x => x.id === activeProfileId);
+            if (p) p.trainPos = pos;
+        }
+
+        /* --- WEEKLY DEVELOPMENT AND AGE PROGRESSION ENGINE --- */
+        function processWeeklyProgression() {
+            state.world.forEach(p => {
+                // Generate standard baseline weekly training performance marker
+                p.trainingRating = Math.random() * 3.4 + 6.2; // Baseline range 6.2 - 9.6
+                
+                // Track custom targeted positional adaptation metrics
+                if (p.trainPos && p.fam[p.trainPos] < 100) {
+                    p.fam[p.trainPos] = Math.min(100, p.fam[p.trainPos] + 1); // Expand adaptation score +1% per week
+                }
+
+                // Process rigorous age-bracket development formulas
+                if (p.age <= 18) {
+                    // Young talent hyper-acceleration brackets
+                    if (p.ca < p.pra && Math.random() > 0.3) {
+                        let gain = Math.random() > 0.8 ? 2 : 1;
+                        Object.keys(p.attrs).forEach(k => p.attrs[k] = Math.min(100, p.attrs[k] + (Math.random() > 0.5 ? gain : 0)));
+                    }
+                } else if (p.age >= 19 && p.age <= 24) {
+                    // Regular core professional physical expansion brackets
+                    if (p.ca < p.pra && Math.random() > 0.5) {
+                        p.attrs['Stamina'] = Math.min(100, p.attrs['Stamina'] + 1);
+                        p.attrs['Tactical'] = Math.min(100, p.attrs['Tactical'] + 1);
+                    }
+                } else if (p.age >= 25 && p.age <= 32) {
+                    // Elite professional consolidation tier - minimal flux modifications
+                    if (Math.random() > 0.9) {
+                        p.attrs['Tactical'] = Math.min(100, p.attrs['Tactical'] + 1);
+                    }
+                } else if (p.age >= 33) {
+                    // Master veteran attrition bracket - performance penalty decay applies if active match exposure flags are low
+                    if (p.matchRating === 0 || p.matchRating < 6.0) {
+                        p.attrs['Speed'] = Math.max(1, p.attrs['Speed'] - (Math.random() > 0.4 ? 1 : 0));
+                        p.attrs['Stamina'] = Math.max(1, p.attrs['Stamina'] - (Math.random() > 0.4 ? 1 : 0));
+                    }
+                }
+
+                // Re-calculate average ability indexes
+                p.ca = Math.floor(Object.values(p.attrs).reduce((a,b)=>a+b,0) / 6);
+                
+                // Process Formula-Based Market Value configuration recalculations
+                p.val = Math.floor(((p.ca * 0.75) + (p.pra * 0.33) + (p.pa * 0.25)) * 150000);
+            });
+        }
+
+        /* --- SCOUTING EVALUATION RUNNER --- */
+        function processScoutingNetwork() {
+            let budget = parseInt(document.getElementById('scout
